@@ -1,6 +1,8 @@
 const http = require("http");
 const { RestClientV5 } = require("bybit-api");
 const dotenv = require("dotenv");
+let mysql = require("mysql");
+const { makeDb } = require("mysql-async-simple");
 dotenv.config();
 
 const server = http.createServer(async function (request, response) {
@@ -17,7 +19,17 @@ const server = http.createServer(async function (request, response) {
       ? (secretKey = process.env.TESTNET_BYBIT_API_SECRET_KEY)
       : (publicKey = process.env.BYBIT_API_SECRET_KEY);
 
-    // INITIATING CONNECTION
+    // INITIATING MYSQL CONNECTION
+    const connection = mysql.createConnection({
+      host: process.env.MYSQL_HOST,
+      user: process.env.MYSQL_USER,
+      password: process.env.MYSQL_PASSWORD,
+      database: process.env.MYSQL_DB_NAME,
+    });
+    const db = makeDb();
+    await db.connect(connection);
+
+    // INITIATING BYBIT CONNECTION
     console.log("initiating Bybit connection...");
     const client = await new RestClientV5({
       testnet: isTestnet ? true : false,
@@ -29,7 +41,7 @@ const server = http.createServer(async function (request, response) {
     request.on("data", async function (data) {
       body += data;
       const bodyParsed = JSON.parse(body);
-      console.log("body", bodyParsed);
+      console.log("bodyParsed", bodyParsed);
       const coin = bodyParsed.ticker.replace(".P", "");
 
       await client.setLeverage({
@@ -48,8 +60,11 @@ const server = http.createServer(async function (request, response) {
       if (bodyParsed.action === "TakeProfit") {
         console.log("TakeProfit order incoming...");
       }
+      if (bodyParsed.action === "SetTrendline") {
+        console.log("SetTrendline order incoming...");
+      }
 
-      // VERIFY IF THERE IS ALREADY AN OPEN POSITION
+      // CHECK IF THERE IS ALREADY AN OPEN POSITION
       const responseGetPositionInfo = await client.getPositionInfo({
         category: "linear",
         symbol: coin,
@@ -57,10 +72,9 @@ const server = http.createServer(async function (request, response) {
 
       const currentPositionSize = responseGetPositionInfo.result.list[0];
 
+      // TAKE PROFIT INTO EXCHANGE
       if (bodyParsed.action === "TakeProfit") {
-        console.log(
-          "Reaching technical indicator, taking profit from the position"
-        );
+        console.log("Taking profit from the position");
 
         const side = currentPositionSize.side === "Buy" ? "Sell" : "Buy";
         const responseTakeProfit = await client.submitOrder({
@@ -73,59 +87,151 @@ const server = http.createServer(async function (request, response) {
         });
 
         if (responseTakeProfit.retMsg === "OK") {
-          console.log("Order closed successfully");
+          console.log("SUCCESS : Exchange order closed");
+
+          const updateDb = await db.query(
+            connection,
+            `UPDATE automation SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
+          );
+
+          console.log("SUCCESS :  Update token details in database ", updateDb);
         }
 
         return;
       }
 
-      if (
-        currentPositionSize.side === bodyParsed.action &&
-        currentPositionSize.size !== "0"
-      ) {
-        console.log(
-          "Skipping order, already " +
-            currentPositionSize.side +
-            " order running."
-        );
-        return;
-      }
+      // SET TRENDLINE INTO DB
+      if (bodyParsed.action === "SetTrendline") {
+        console.log("SetTrendline action to database");
 
-      if (
-        currentPositionSize.side !== bodyParsed.action &&
-        currentPositionSize.size !== "0"
-      ) {
-        console.log(
-          "Current " + currentPositionSize.side + " order running. Closing it."
+        const selectCoinFromDb = await db.query(
+          connection,
+          `SELECT * FROM automation WHERE token_name='${coin}'`
         );
 
-        const responseClosePosition = await client.submitOrder({
-          category: "linear",
-          symbol: coin,
-          side: bodyParsed.action,
-          qty: "0",
-          orderType: "Market",
-          reduceOnly: "true",
-        });
+        if (!selectCoinFromDb[0]) {
+          const insertDb = await db.query(
+            connection,
+            `INSERT INTO automation (token_name, trendline_type, trendline_coin_position, created_at, updated_at) VALUES ('${coin}', '${bodyParsed.trendlineType}', '${bodyParsed.trendlineCoinPosition}', NOW(), NOW())`
+          );
 
-        if (responseClosePosition.retMsg === "OK") {
-          console.log("Order closed successfully");
+          console.log("SUCCESS : Create new token in database", insertDb);
+          return;
+        }
+
+        if (selectCoinFromDb[0]) {
+          const updateDb = await db.query(
+            connection,
+            `UPDATE automation SET trendline_type = '${bodyParsed.trendlineType}', trendline_coin_position = '${bodyParsed.trendlineCoinPosition}', updated_at = NOW() WHERE token_name = '${coin}'`
+          );
+
+          console.log("SUCCESS : Update token in database", updateDb);
+          return;
         }
       }
 
-      const finalQuantity =
-        (bodyParsed.quantityUSDT / bodyParsed.coinPrice) * bodyParsed.leverage;
+      // BUY OR SELL ORDER INTO EXCHANGE
+      if (bodyParsed.action === "Buy" || bodyParsed.action === "Sell") {
+        // SAME POSITION SIDE RUNNING, SKIPPING
+        if (
+          currentPositionSize.side === bodyParsed.action &&
+          currentPositionSize.size !== "0"
+        ) {
+          console.log(
+            "Skipping order, already " +
+              currentPositionSize.side +
+              " order running."
+          );
+          return;
+        }
 
-      const responseFinal = await client.submitOrder({
-        category: "linear",
-        symbol: coin,
-        side: bodyParsed.action,
-        qty: String(finalQuantity.toFixed(0)),
-        orderType: "Market",
-      });
+        // OPPOSITE POSITION SIDE RUNNING, CLOSING IT
+        if (
+          currentPositionSize.side !== bodyParsed.action &&
+          currentPositionSize.size !== "0"
+        ) {
+          console.log(
+            "Current " +
+              currentPositionSize.side +
+              " order running. Closing it."
+          );
 
-      if (responseFinal.retMsg === "OK") {
-        console.log(bodyParsed.action + " order open successfully !");
+          const responseClosePosition = await client.submitOrder({
+            category: "linear",
+            symbol: coin,
+            side: bodyParsed.action,
+            qty: "0",
+            orderType: "Market",
+            reduceOnly: "true",
+          });
+
+          if (responseClosePosition.retMsg === "OK") {
+            console.log("Order closed successfully");
+
+            const updateDb = await db.query(
+              connection,
+              `UPDATE automation SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
+            );
+
+            console.log("success update token in db ", updateDb);
+          }
+        }
+
+        // NEW BUY OR SELL ORDER, OPENING IT
+        const selectCoinFromDb = await db.query(
+          connection,
+          `SELECT * FROM automation WHERE token_name='${coin}'`
+        );
+
+        if (selectCoinFromDb.length === 0) {
+          console.log(
+            "Coin does not exists on database, skipping " +
+              bodyParsed.action +
+              " order."
+          );
+
+          return;
+        }
+
+        if (selectCoinFromDb.length !== 0) {
+          console.log("Coin exists on database ", selectCoinFromDb[0]);
+
+          if (
+            !selectCoinFromDb[0].trendline_type ||
+            !selectCoinFromDb[0].trendline_coin_position
+          ) {
+            console.log(
+              "Coin does not have trendline data, skipping " +
+                bodyParsed.action +
+                " order."
+            );
+
+            return;
+          }
+
+          const finalQuantity =
+            (bodyParsed.quantityUSDT / bodyParsed.coinPrice) *
+            bodyParsed.leverage;
+
+          const responseFinal = await client.submitOrder({
+            category: "linear",
+            symbol: coin,
+            side: bodyParsed.action,
+            qty: String(finalQuantity.toFixed(0)),
+            orderType: "Market",
+          });
+
+          if (responseFinal.retMsg === "OK") {
+            console.log(bodyParsed.action + " order open successfully !");
+
+            const updateDb = await db.query(
+              connection,
+              `UPDATE automation SET trade_running = 1, trade_type = '${bodyParsed.action}' WHERE token_name = '${coin}'`
+            );
+
+            console.log("success update token in db ", updateDb);
+          }
+        }
       }
     });
     request.on("end", function () {
