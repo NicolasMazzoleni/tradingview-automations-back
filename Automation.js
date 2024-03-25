@@ -13,10 +13,10 @@ const server = http.createServer(async function (request, response) {
     let secretKey;
 
     isTestnet
-      ? (publicKey = process.env.TESTNET_BYBIT_API_KEY)
+      ? (publicKey = process.env.TESTNET1_BYBIT_API_KEY)
       : (publicKey = process.env.BYBIT_API_KEY);
     isTestnet
-      ? (secretKey = process.env.TESTNET_BYBIT_API_SECRET_KEY)
+      ? (secretKey = process.env.TESTNET1_BYBIT_API_SECRET_KEY)
       : (publicKey = process.env.BYBIT_API_SECRET_KEY);
 
     // INITIATING MYSQL CONNECTION
@@ -97,6 +97,7 @@ const server = http.createServer(async function (request, response) {
           console.log("SUCCESS :  Update token details in database ", updateDb);
         }
 
+        await db.close(connection);
         return;
       }
 
@@ -116,6 +117,7 @@ const server = http.createServer(async function (request, response) {
           );
 
           console.log("SUCCESS : Create new token in database", insertDb);
+          await db.close(connection);
           return;
         }
 
@@ -126,6 +128,7 @@ const server = http.createServer(async function (request, response) {
           );
 
           console.log("SUCCESS : Update token in database", updateDb);
+          await db.close(connection);
           return;
         }
       }
@@ -142,6 +145,7 @@ const server = http.createServer(async function (request, response) {
               currentPositionSize.side +
               " order running."
           );
+          await db.close(connection);
           return;
         }
 
@@ -173,6 +177,7 @@ const server = http.createServer(async function (request, response) {
               `UPDATE automation SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
             );
 
+            await db.close(connection);
             console.log("success update token in db ", updateDb);
           }
         }
@@ -190,6 +195,7 @@ const server = http.createServer(async function (request, response) {
               " order."
           );
 
+          await db.close(connection);
           return;
         }
 
@@ -206,6 +212,7 @@ const server = http.createServer(async function (request, response) {
                 " order."
             );
 
+            await db.close(connection);
             return;
           }
 
@@ -234,9 +241,11 @@ const server = http.createServer(async function (request, response) {
                   `UPDATE automation SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
                 );
 
+                await db.close(connection);
                 console.log("success update token in db ", updateDb);
               }
 
+              await db.close(connection);
               return;
             }
 
@@ -246,6 +255,8 @@ const server = http.createServer(async function (request, response) {
                   bodyParsed.action +
                   " order, trendlines configurations does not match."
               );
+
+              await db.close(connection);
               return;
             }
           }
@@ -258,6 +269,8 @@ const server = http.createServer(async function (request, response) {
                     bodyParsed.action +
                     " order, trendlines configurations does not match."
                 );
+
+                await db.close(connection);
                 return;
               }
 
@@ -278,9 +291,11 @@ const server = http.createServer(async function (request, response) {
                     `UPDATE automation SET trade_running = 1, trade_type = Buy' WHERE token_name = '${coin}'`
                   );
 
+                  await db.close(connection);
                   console.log("success update token in db ", updateDb);
                 }
 
+                await db.close(connection);
                 return;
               }
             }
@@ -292,6 +307,8 @@ const server = http.createServer(async function (request, response) {
                     bodyParsed.action +
                     " order, trendlines configurations does not match."
                 );
+
+                await db.close(connection);
                 return;
               }
 
@@ -312,9 +329,11 @@ const server = http.createServer(async function (request, response) {
                     `UPDATE automation SET trade_running = 1, trade_type = '${bodyParsed.action}' WHERE token_name = '${coin}'`
                   );
 
+                  await db.close(connection);
                   console.log("success update token in db ", updateDb);
                 }
 
+                await db.close(connection);
                 return;
               }
             }
