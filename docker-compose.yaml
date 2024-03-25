@@ -1,15 +1,24 @@
-version: "3.1"
+version: "3"
 volumes:
   data:
 services:
   db:
     image: mariadb
     environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: mydatabase
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    command: --init-file /data/application/init.sql
     volumes:
-      - ./init.sql:/data/application/init.sql
+      - data:/var/lib/mysql
     ports:
       - "3306:3306"
+
+
+
+
+
+
+
+
+

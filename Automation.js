@@ -227,11 +227,11 @@ const server = http.createServer(async function (request, response) {
               });
 
               if (responseFinal.retMsg === "OK") {
-                console.log(bodyParsed.action + " order open successfully !");
+                console.log("Buy order open successfully !");
 
                 const updateDb = await db.query(
                   connection,
-                  `UPDATE automation SET trade_running = 1, trade_type = '${bodyParsed.action}' WHERE token_name = '${coin}'`
+                  `UPDATE automation SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
                 );
 
                 console.log("success update token in db ", updateDb);
@@ -271,11 +271,11 @@ const server = http.createServer(async function (request, response) {
                 });
 
                 if (responseFinal.retMsg === "OK") {
-                  console.log(bodyParsed.action + " order open successfully !");
+                  console.log("Buy order open successfully !");
 
                   const updateDb = await db.query(
                     connection,
-                    `UPDATE automation SET trade_running = 1, trade_type = '${bodyParsed.action}' WHERE token_name = '${coin}'`
+                    `UPDATE automation SET trade_running = 1, trade_type = Buy' WHERE token_name = '${coin}'`
                   );
 
                   console.log("success update token in db ", updateDb);
