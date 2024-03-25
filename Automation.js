@@ -213,23 +213,111 @@ const server = http.createServer(async function (request, response) {
             (bodyParsed.quantityUSDT / bodyParsed.coinPrice) *
             bodyParsed.leverage;
 
-          const responseFinal = await client.submitOrder({
-            category: "linear",
-            symbol: coin,
-            side: bodyParsed.action,
-            qty: String(finalQuantity.toFixed(0)),
-            orderType: "Market",
-          });
+          const coinDb = selectCoinFromDb[0];
 
-          if (responseFinal.retMsg === "OK") {
-            console.log(bodyParsed.action + " order open successfully !");
+          // OPEN POSITION REGARDING TRENDLINE CONFIGURATION
+          if (coinDb.trendline_type === "UPTREND") {
+            if (coinDb.trendline_coin_position === "ABOVE") {
+              const responseFinal = await client.submitOrder({
+                category: "linear",
+                symbol: coin,
+                side: "Buy",
+                qty: String(finalQuantity.toFixed(0)),
+                orderType: "Market",
+              });
 
-            const updateDb = await db.query(
-              connection,
-              `UPDATE automation SET trade_running = 1, trade_type = '${bodyParsed.action}' WHERE token_name = '${coin}'`
-            );
+              if (responseFinal.retMsg === "OK") {
+                console.log(bodyParsed.action + " order open successfully !");
 
-            console.log("success update token in db ", updateDb);
+                const updateDb = await db.query(
+                  connection,
+                  `UPDATE automation SET trade_running = 1, trade_type = '${bodyParsed.action}' WHERE token_name = '${coin}'`
+                );
+
+                console.log("success update token in db ", updateDb);
+              }
+
+              return;
+            }
+
+            if (coinDb.trendline_coin_position === "BELOW") {
+              console.log(
+                "Skipping " +
+                  bodyParsed.action +
+                  " order, trendlines configurations does not match."
+              );
+              return;
+            }
+          }
+
+          if (coinDb.trendline_type === "DOWNTREND") {
+            if (coinDb.trendline_coin_position === "ABOVE") {
+              if (bodyParsed.action === "Buy") {
+                console.log(
+                  "Skipping " +
+                    bodyParsed.action +
+                    " order, trendlines configurations does not match."
+                );
+                return;
+              }
+
+              if (bodyParsed.action === "Sell") {
+                const responseFinal = await client.submitOrder({
+                  category: "linear",
+                  symbol: coin,
+                  side: "Buy",
+                  qty: String(finalQuantity.toFixed(0)),
+                  orderType: "Market",
+                });
+
+                if (responseFinal.retMsg === "OK") {
+                  console.log(bodyParsed.action + " order open successfully !");
+
+                  const updateDb = await db.query(
+                    connection,
+                    `UPDATE automation SET trade_running = 1, trade_type = '${bodyParsed.action}' WHERE token_name = '${coin}'`
+                  );
+
+                  console.log("success update token in db ", updateDb);
+                }
+
+                return;
+              }
+            }
+
+            if (coinDb.trendline_coin_position === "BELOW") {
+              if (bodyParsed.action === "Buy") {
+                console.log(
+                  "Skipping " +
+                    bodyParsed.action +
+                    " order, trendlines configurations does not match."
+                );
+                return;
+              }
+
+              if (bodyParsed.action === "Sell") {
+                const responseFinal = await client.submitOrder({
+                  category: "linear",
+                  symbol: coin,
+                  side: bodyParsed.action,
+                  qty: String(finalQuantity.toFixed(0)),
+                  orderType: "Market",
+                });
+
+                if (responseFinal.retMsg === "OK") {
+                  console.log(bodyParsed.action + " order open successfully !");
+
+                  const updateDb = await db.query(
+                    connection,
+                    `UPDATE automation SET trade_running = 1, trade_type = '${bodyParsed.action}' WHERE token_name = '${coin}'`
+                  );
+
+                  console.log("success update token in db ", updateDb);
+                }
+
+                return;
+              }
+            }
           }
         }
       }
