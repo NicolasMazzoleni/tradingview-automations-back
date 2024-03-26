@@ -288,7 +288,7 @@ const server = http.createServer(async function (request, response) {
 
                   const updateDb = await db.query(
                     connection,
-                    `UPDATE automation SET trade_running = 1, trade_type = Buy' WHERE token_name = '${coin}'`
+                    `UPDATE automation SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
                   );
 
                   await db.close(connection);
