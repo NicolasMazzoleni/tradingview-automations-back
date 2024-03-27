@@ -89,6 +89,7 @@ const server = http.createServer(async function (request, response) {
         if (responseTakeProfit.retMsg === "OK") {
           console.log("SUCCESS : Exchange order closed");
 
+          await db.connect(connection);
           const updateDb = await db.query(
             connection,
             `UPDATE automation SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
@@ -111,6 +112,7 @@ const server = http.createServer(async function (request, response) {
         );
 
         if (!selectCoinFromDb[0]) {
+          await db.connect(connection);
           const insertDb = await db.query(
             connection,
             `INSERT INTO automation (token_name, trendline_type, trendline_coin_position, created_at, updated_at) VALUES ('${coin}', '${bodyParsed.trendlineType}', '${bodyParsed.trendlineCoinPosition}', NOW(), NOW())`
@@ -122,6 +124,7 @@ const server = http.createServer(async function (request, response) {
         }
 
         if (selectCoinFromDb[0]) {
+          await db.connect(connection);
           const updateDb = await db.query(
             connection,
             `UPDATE automation SET trendline_type = '${bodyParsed.trendlineType}', trendline_coin_position = '${bodyParsed.trendlineCoinPosition}', updated_at = NOW() WHERE token_name = '${coin}'`
@@ -172,6 +175,7 @@ const server = http.createServer(async function (request, response) {
           if (responseClosePosition.retMsg === "OK") {
             console.log("Order closed successfully");
 
+            await db.connect(connection);
             const updateDb = await db.query(
               connection,
               `UPDATE automation SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
@@ -236,6 +240,7 @@ const server = http.createServer(async function (request, response) {
               if (responseFinal.retMsg === "OK") {
                 console.log("Buy order open successfully !");
 
+                await db.connect(connection);
                 const updateDb = await db.query(
                   connection,
                   `UPDATE automation SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
@@ -286,6 +291,7 @@ const server = http.createServer(async function (request, response) {
                 if (responseFinal.retMsg === "OK") {
                   console.log("Buy order open successfully !");
 
+                  await db.connect(connection);
                   const updateDb = await db.query(
                     connection,
                     `UPDATE automation SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
@@ -324,6 +330,7 @@ const server = http.createServer(async function (request, response) {
                 if (responseFinal.retMsg === "OK") {
                   console.log(bodyParsed.action + " order open successfully !");
 
+                  await db.connect(connection);
                   const updateDb = await db.query(
                     connection,
                     `UPDATE automation SET trade_running = 1, trade_type = '${bodyParsed.action}' WHERE token_name = '${coin}'`
