@@ -1,12 +1,12 @@
 const http = require("http");
 const { RestClientV5 } = require("bybit-api");
 const dotenv = require("dotenv");
-let mysql = require("mysql");
-const { makeDb } = require("mysql-async-simple");
+let mysql2 = require("mysql2/promise")
 dotenv.config();
 
 const server = http.createServer(async function (request, response) {
   if (request.method == "POST") {
+    
     // REQUEST INCOMING
     const isTestnet = process.env.TESTNET;
     let publicKey;
@@ -20,14 +20,14 @@ const server = http.createServer(async function (request, response) {
       : (publicKey = process.env.BYBIT_API_SECRET_KEY);
 
     // INITIATING MYSQL CONNECTION
-    const connection = mysql.createConnection({
+    const db = await mysql2.createConnection({
       host: process.env.MYSQL_HOST,
       user: process.env.MYSQL_USER,
       password: process.env.MYSQL_PASSWORD,
       database: process.env.MYSQL_DB_NAME,
     });
-    const db = makeDb();
-    await db.connect(connection);
+   
+    await db.connect();
 
     // INITIATING BYBIT CONNECTION
     console.log("initiating Bybit connection...");
@@ -89,50 +89,37 @@ const server = http.createServer(async function (request, response) {
         if (responseTakeProfit.retMsg === "OK") {
           console.log("SUCCESS : Exchange order closed");
 
-          await db.connect(connection);
           const updateDb = await db.query(
-            connection,
             `UPDATE automation SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
           console.log("SUCCESS :  Update token details in database ", updateDb);
         }
 
-        await db.close(connection);
-        return;
       }
 
       // SET TRENDLINE INTO DB
       if (bodyParsed.action === "SetTrendline") {
         console.log("SetTrendline action to database");
 
-        const selectCoinFromDb = await db.query(
-          connection,
+        const [selectCoinFromDb] = await db.query(
           `SELECT * FROM automation WHERE token_name='${coin}'`
         );
 
         if (!selectCoinFromDb[0]) {
-          await db.connect(connection);
           const insertDb = await db.query(
-            connection,
             `INSERT INTO automation (token_name, trendline_type, trendline_coin_position, created_at, updated_at) VALUES ('${coin}', '${bodyParsed.trendlineType}', '${bodyParsed.trendlineCoinPosition}', NOW(), NOW())`
           );
 
           console.log("SUCCESS : Create new token in database", insertDb);
-          await db.close(connection);
-          return;
         }
 
         if (selectCoinFromDb[0]) {
-          await db.connect(connection);
           const updateDb = await db.query(
-            connection,
             `UPDATE automation SET trendline_type = '${bodyParsed.trendlineType}', trendline_coin_position = '${bodyParsed.trendlineCoinPosition}', updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
           console.log("SUCCESS : Update token in database", updateDb);
-          await db.close(connection);
-          return;
         }
       }
 
@@ -148,8 +135,6 @@ const server = http.createServer(async function (request, response) {
               currentPositionSize.side +
               " order running."
           );
-          await db.close(connection);
-          return;
         }
 
         // OPPOSITE POSITION SIDE RUNNING, CLOSING IT
@@ -175,20 +160,17 @@ const server = http.createServer(async function (request, response) {
           if (responseClosePosition.retMsg === "OK") {
             console.log("Order closed successfully");
 
-            await db.connect(connection);
             const updateDb = await db.query(
-              connection,
               `UPDATE automation SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
             );
 
-            await db.close(connection);
+            await db.end();
             console.log("success update token in db ", updateDb);
           }
         }
 
         // NEW BUY OR SELL ORDER, OPENING IT
-        const selectCoinFromDb = await db.query(
-          connection,
+        const [selectCoinFromDb] = await db.query(
           `SELECT * FROM automation WHERE token_name='${coin}'`
         );
 
@@ -198,9 +180,6 @@ const server = http.createServer(async function (request, response) {
               bodyParsed.action +
               " order."
           );
-
-          await db.close(connection);
-          return;
         }
 
         if (selectCoinFromDb.length !== 0) {
@@ -215,9 +194,6 @@ const server = http.createServer(async function (request, response) {
                 bodyParsed.action +
                 " order."
             );
-
-            await db.close(connection);
-            return;
           }
 
           const finalQuantity =
@@ -242,16 +218,11 @@ const server = http.createServer(async function (request, response) {
 
                 await db.connect(connection);
                 const updateDb = await db.query(
-                  connection,
                   `UPDATE automation SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
                 );
 
-                await db.close(connection);
                 console.log("success update token in db ", updateDb);
               }
-
-              await db.close(connection);
-              return;
             }
 
             if (coinDb.trendline_coin_position === "BELOW") {
@@ -260,9 +231,6 @@ const server = http.createServer(async function (request, response) {
                   bodyParsed.action +
                   " order, trendlines configurations does not match."
               );
-
-              await db.close(connection);
-              return;
             }
           }
 
@@ -274,9 +242,6 @@ const server = http.createServer(async function (request, response) {
                     bodyParsed.action +
                     " order, trendlines configurations does not match."
                 );
-
-                await db.close(connection);
-                return;
               }
 
               if (bodyParsed.action === "Sell") {
@@ -291,18 +256,12 @@ const server = http.createServer(async function (request, response) {
                 if (responseFinal.retMsg === "OK") {
                   console.log("Buy order open successfully !");
 
-                  await db.connect(connection);
                   const updateDb = await db.query(
-                    connection,
                     `UPDATE automation SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
                   );
 
-                  await db.close(connection);
                   console.log("success update token in db ", updateDb);
                 }
-
-                await db.close(connection);
-                return;
               }
             }
 
@@ -313,9 +272,6 @@ const server = http.createServer(async function (request, response) {
                     bodyParsed.action +
                     " order, trendlines configurations does not match."
                 );
-
-                await db.close(connection);
-                return;
               }
 
               if (bodyParsed.action === "Sell") {
@@ -330,30 +286,26 @@ const server = http.createServer(async function (request, response) {
                 if (responseFinal.retMsg === "OK") {
                   console.log(bodyParsed.action + " order open successfully !");
 
-                  await db.connect(connection);
                   const updateDb = await db.query(
-                    connection,
                     `UPDATE automation SET trade_running = 1, trade_type = '${bodyParsed.action}' WHERE token_name = '${coin}'`
                   );
-
-                  await db.close(connection);
                   console.log("success update token in db ", updateDb);
                 }
-
-                await db.close(connection);
-                return;
               }
             }
           }
         }
       }
-    });
-    request.on("end", function () {
+
+      console.log('Request end !')
+      db.close();
       response.writeHead(200, { "Content-Type": "text/html" });
       response.end("order triggered received");
     });
   } else {
     console.log("error");
+    response.writeHead(200, { "Content-Type": "text/html" });
+    response.end("Error");
   }
 });
 
