@@ -1,9 +1,8 @@
-version: "3"
 volumes:
   data:
 services:
   db:
-    image: mariadb
+    image: linuxserver/mariadb:arm32v7-alpine-10.5.16-r0-ls63
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: mydatabase
@@ -13,6 +12,13 @@ services:
       - data:/var/lib/mysql
     ports:
       - "3306:3306"
+  admin:
+    image: phpmyadmin
+    restart: always
+    environment:
+      - PMA_ARBITRARY=1
+    ports:
+      - 8080:80
 
 
 
