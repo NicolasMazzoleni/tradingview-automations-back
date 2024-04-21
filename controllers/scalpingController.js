@@ -1,19 +1,15 @@
 const { RestClientV5 } = require("bybit-api");
 const dotenv = require("dotenv");
 let mysql2 = require("mysql2/promise")
-const axios = require('axios');
 dotenv.config();
+const { telegramService } = require('../services/telegramService')
 
 
-// exanmple : https://dev.to/ericlecodeur/nodejs-express-partie-5-routes-et-controllers-18l
 const postScalping = (async (request, response) => {
-    try {
-    console.log("---------------------");
-    console.log("new scalping order");
-
     const isTestnet = process.env.TESTNET;
     let publicKey;
     let secretKey;
+    let telegramPayload;
     
     isTestnet
         ? (publicKey = process.env.TESTNET1_BYBIT_API_KEY)
@@ -21,6 +17,10 @@ const postScalping = (async (request, response) => {
     isTestnet
         ? (secretKey = process.env.TESTNET1_BYBIT_API_SECRET_KEY)
         : (publicKey = process.env.BYBIT_API_SECRET_KEY);
+
+    try {
+    console.log("---------------------");
+    console.log("new scalping order");
 
 
     // INITIATING MYSQL CONNECTION
@@ -92,7 +92,7 @@ const postScalping = (async (request, response) => {
           console.log("SUCCESS : Exchange order closed");
 
           const updateDb = await db.query(
-            `UPDATE scalping SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
+            `UPDATE scalping_db SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
           console.log("SUCCESS :  Update token details in database ", updateDb);
@@ -104,20 +104,21 @@ const postScalping = (async (request, response) => {
         console.log("SetTrendline action to database");
 
         const [selectCoinFromDb] = await db.query(
-          `SELECT * FROM scalping WHERE token_name='${coin}'`
+          `SELECT * FROM scalping_db WHERE token_name='${coin}'`
         );
 
         if (!selectCoinFromDb[0]) {
           const insertDb = await db.query(
-            `INSERT INTO scalping (token_name, trendline_type, trendline_coin_position, created_at, updated_at) VALUES ('${coin}', '${trendlineType}', '${trendlineCoinPosition}', NOW(), NOW())`
+            `INSERT INTO scalping_db (token_name, trendline_type, trendline_coin_position, created_at, updated_at) VALUES ('${coin}', '${trendlineType}', '${trendlineCoinPosition}', NOW(), NOW())`
           );
 
-          console.log("SUCCESS : Create new token in database", insertDb);
+          telegramPayload = `Create new token ${coin} in database : ${insertDb}`
+          console.log(telegramPayload)
         }
 
         if (selectCoinFromDb[0]) {
           const updateDb = await db.query(
-            `UPDATE scalping SET trendline_type = '${trendlineType}', trendline_coin_position = '${trendlineCoinPosition}', updated_at = NOW() WHERE token_name = '${coin}'`
+            `UPDATE scalping_db SET trendline_type = '${trendlineType}', trendline_coin_position = '${trendlineCoinPosition}', updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
           console.log("SUCCESS : Update token in database", updateDb);
@@ -127,15 +128,14 @@ const postScalping = (async (request, response) => {
       // BUY OR SELL ORDER INTO EXCHANGE
       if (action === "Buy" || action === "Sell") {
         // SAME POSITION SIDE RUNNING, SKIPPING
+
         if (
           currentPositionSize.side === action &&
           currentPositionSize.size !== "0"
         ) {
-          console.log(
-            "Skipping order, already " +
-              currentPositionSize.side +
-              " order running."
-          );
+
+          telegramPayload = `Skipping order, already ${currentPositionSize.side} order running.`
+          console.log(telegramPayload)
         }
 
         // OPPOSITE POSITION SIDE RUNNING, CLOSING IT
@@ -143,11 +143,8 @@ const postScalping = (async (request, response) => {
           currentPositionSize.side !== action &&
           currentPositionSize.size !== "0"
         ) {
-          console.log(
-            "Current " +
-              currentPositionSize.side +
-              " order running. Closing it."
-          );
+          telegramPayload = `currentPositionSize ${currentPositionSize.side} order running. Closing it.`
+          console.log(telegramPayload)
 
           const responseClosePosition = await client.submitOrder({
             category: "linear",
@@ -176,25 +173,20 @@ const postScalping = (async (request, response) => {
         );
 
         if (selectCoinFromDb.length === 0) {
-          console.log(
-            "Coin does not exists on database, skipping " +
-              action +
-              " order."
-          );
+          telegramPayload = `Coin ${coin} does not exists on database, skipping ${action} order.`
+          console.log(telegramPayload)
         }
 
         if (selectCoinFromDb.length !== 0) {
-          console.log("Coin exists on database ", selectCoinFromDb[0]);
+            telegramPayload = `Coin ${coin} exists on database, skipping ${action} order.`
+            console.log(telegramPayload);
 
           if (
             !selectCoinFromDb[0].trendline_type ||
             !selectCoinFromDb[0].trendline_coin_position
           ) {
-            console.log(
-              "Coin does not have trendline data, skipping " +
-                action +
-                " order."
-            );
+            telegramPayload = `Coin ${coin}  does not have trendline data, skipping ${action} order.`
+            console.log(telegramPayload);
           }
 
           const finalQuantity =
@@ -215,7 +207,8 @@ const postScalping = (async (request, response) => {
               });
 
               if (responseFinal.retMsg === "OK") {
-                console.log("Buy order open successfully !");
+                telegramPayload = `Coin ${coin} Buy order open successfully !`
+                console.log(telegramPayload);
 
                 await db.connect(connection);
                 const updateDb = await db.query(
@@ -227,22 +220,17 @@ const postScalping = (async (request, response) => {
             }
 
             if (coinDb.trendline_coin_position === "BELOW") {
-              console.log(
-                "Skipping " +
-                  action +
-                  " order, trendlines configurations does not match."
-              );
+              telegramPayload = `Coin ${coin} skipping ${action} order, trendlines configurations does not match.`
+              console.log(telegramPayload);
+
             }
           }
 
           if (coinDb.trendline_type === "DOWNTREND") {
             if (coinDb.trendline_coin_position === "ABOVE") {
               if (action === "Buy") {
-                console.log(
-                  "Skipping " +
-                    action +
-                    " order, trendlines configurations does not match."
-                );
+                telegramPayload = `Coin ${coin} skipping ${action} order, trendlines configurations does not match.`
+                console.log(telegramPayload);
               }
 
               if (action === "Sell") {
@@ -255,7 +243,8 @@ const postScalping = (async (request, response) => {
                 });
 
                 if (responseFinal.retMsg === "OK") {
-                  console.log("Buy order open successfully !");
+                    telegramPayload = `Coin ${coin} Buy order open successfully !`
+                    console.log(telegramPayload);
 
                   const updateDb = await db.query(
                     `UPDATE scalping_db SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
@@ -268,11 +257,8 @@ const postScalping = (async (request, response) => {
 
             if (coinDb.trendline_coin_position === "BELOW") {
               if (action === "Buy") {
-                console.log(
-                  "Skipping " +
-                    action +
-                    " order, trendlines configurations does not match."
-                );
+                telegramPayload = `Coin ${coin} skipping ${action} order, trendlines configurations does not match.`
+                console.log(telegramPayload);
               }
 
               if (action === "Sell") {
@@ -285,7 +271,8 @@ const postScalping = (async (request, response) => {
                 });
 
                 if (responseFinal.retMsg === "OK") {
-                  console.log(action + " order open successfully !");
+                  telegramPayload = `Coin ${coin} ${action} order open successfully !`
+                  console.log(telegramPayload);
 
                   const updateDb = await db.query(
                     `UPDATE scalping_db SET trade_running = 1, trade_type = '${action}' WHERE token_name = '${coin}'`
@@ -297,14 +284,14 @@ const postScalping = (async (request, response) => {
           }
         }
       }
+
+      await telegramService(isTestnet, 'scalpingController', 'success', telegramPayload)
+      response.sendStatus(200)
     } catch(error) {
-        const data = { message: "scalpingController", error }
-        const formatText = `❌ ERROR ${JSON.stringify(data)}`
-        await axios.post(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN_ID}/sendMessage?chat_id=${process.env.TELEGRAM_USER_ID}&text=${formatText}`);
+        await telegramService(isTestnet, 'scalpingController', 'error', error)
         
         response
         .status(500)
-        .json(data)
         console.log(`throw error ${error}`)
     }
     })
