@@ -304,7 +304,7 @@ const postScalping = (async (request, response) => {
         
         response
         .status(500)
-        .json({ message: "scalpingCOntroller", error })
+        .json(data)
         console.log(`throw error ${error}`)
     }
     })
