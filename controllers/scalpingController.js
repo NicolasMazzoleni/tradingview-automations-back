@@ -283,11 +283,6 @@ const postScalping = (async (request, response) => {
                 if (responseFinal.retMsg !== "OK") {
                   telegramPayload = `Coin ${coin} ${action} order error : ${responseFinal.retMsg}`
                   console.log(telegramPayload);
-
-                  const updateDb = await db.query(
-                    `UPDATE scalping_db SET trade_running = 1, trade_type = '${action}' WHERE token_name = '${coin}'`
-                  );
-                  console.log("success update token in db ", updateDb);
                 }
               }
             }
