@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon server.js"
+    "start": "nodemon server.js",
+    "start-raspberry": "pm2 start server.js --watch -f",
+    "stop-raspberry": "pm2 stop server.js"
   },
   "author": "",
   "license": "ISC",
@@ -15,7 +17,8 @@
     "express": "4.19.2",
     "mysql2": "3.9.3",
     "node-cron": "3.0.3",
-    "nodemon": "3.1.0"
+    "nodemon": "3.1.0",
+    "pm2": "^5.3.1"
   },
   "devDependencies": {
     "eslint": "^9.1.0"
