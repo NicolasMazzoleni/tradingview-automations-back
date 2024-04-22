@@ -179,7 +179,6 @@ const postScalping = (async (request, response) => {
 
         if (selectCoinFromDb.length !== 0) {
             telegramPayload = `Coin ${coin} exists on database, skipping ${action} order.`
-            console.log(telegramPayload);
 
           if (
             !selectCoinFromDb[0].trendline_type ||
@@ -262,6 +261,7 @@ const postScalping = (async (request, response) => {
               }
 
               if (action === "Sell") {
+
                 const responseFinal = await client.submitOrder({
                   category: "linear",
                   symbol: coin,
@@ -272,6 +272,16 @@ const postScalping = (async (request, response) => {
 
                 if (responseFinal.retMsg === "OK") {
                   telegramPayload = `Coin ${coin} ${action} order open successfully !`
+                  console.log(telegramPayload);
+
+                  const updateDb = await db.query(
+                    `UPDATE scalping_db SET trade_running = 1, trade_type = '${action}' WHERE token_name = '${coin}'`
+                  );
+                  console.log("success update token in db ", updateDb);
+                }
+
+                if (responseFinal.retMsg !== "OK") {
+                  telegramPayload = `Coin ${coin} ${action} order error : ${responseFinal.retMsg}`
                   console.log(telegramPayload);
 
                   const updateDb = await db.query(
