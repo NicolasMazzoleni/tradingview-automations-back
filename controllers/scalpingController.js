@@ -95,7 +95,7 @@ const postScalping = (async (request, response) => {
             `UPDATE scalping_db SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
-          console.log("SUCCESS :  Update token details in database ", updateDb);
+          console.log(`SUCCESS :  Update ${coin} details in database `, updateDb);
         }
       }
 
@@ -121,7 +121,8 @@ const postScalping = (async (request, response) => {
             `UPDATE scalping_db SET trendline_type = '${trendlineType}', trendline_coin_position = '${trendlineCoinPosition}', updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
-          console.log("SUCCESS : Update token in database", updateDb);
+          telegramPayload = `Success updatenew token ${coin} in database : ${insertDb}`
+          console.log(telegramPayload);
         }
       }
 

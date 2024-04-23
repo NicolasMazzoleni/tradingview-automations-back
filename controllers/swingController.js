@@ -42,7 +42,7 @@ const postSwing = (async (request, response) => {
       const coinMarketCap = await getCoinMarketCap({coin: coin})
       console.log('coinData ', coinMarketCap)
 
-      // 
+      //TODO 
 
 
       
