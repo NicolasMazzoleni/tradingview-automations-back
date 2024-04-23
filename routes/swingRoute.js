@@ -2,10 +2,10 @@ const express = require('express')
 const router = express.Router()
 
 const  { 
-    test
+    postSwing
 } = require('../controllers/swingController.js')
 
-router.get('/', test)
+router.post('/', postSwing)
 
 // router.get('/:productID', getProduct)
 

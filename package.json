@@ -15,6 +15,7 @@
     "bybit-api": "3.8.1",
     "dotenv": "16.3.2",
     "express": "4.19.2",
+    "kucoin-node-sdk": "^1.0.6",
     "mysql2": "3.9.3",
     "node-cron": "3.0.3",
     "nodemon": "3.1.0",
