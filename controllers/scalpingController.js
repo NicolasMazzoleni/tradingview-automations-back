@@ -234,8 +234,6 @@ const postScalping = (async (request, response) => {
                   orderType: "Market",
                 });
 
-                console.log('responseFinal ', responseFinal)
-
                 if (responseFinal.retMsg === "OK") {
                     await telegramService(commonTelegramPayload, `SUCCESS order opened successfully on exchange : ${responseFinal.retMsg}`)
 
