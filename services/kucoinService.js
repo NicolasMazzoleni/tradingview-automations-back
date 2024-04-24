@@ -17,8 +17,17 @@ const getTotalAccountBalance = async () => {
 
   return totalBalanceOfTradeAccount
   };
+
+  const postOrder = async (baseParams = {}, orderParams = {}) => {
+    const openSpotPosition = await API.rest.Trade.Orders.postOrder(baseParams, orderParams);
+    return openSpotPosition
+
+
+
+  }
   
   module.exports = {
-    getTotalAccountBalance
+    getTotalAccountBalance,
+    postOrder
   }
 

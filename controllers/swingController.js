@@ -2,9 +2,10 @@
 const dotenv = require("dotenv");
 let mysql2 = require("mysql2/promise")
 dotenv.config();
-const { getTotalAccountBalance } = require('../services/kucoinService')
+const { getTotalAccountBalance, postOrder } = require('../services/kucoinService')
 const { telegramService } = require('../services/telegramService')
-const { getCoinMarketCap } = require('../services/coinMarketCapService')
+const { getCoinMarketCap } = require('../services/coinMarketCapService');
+const { post } = require("../routes/swingRoute");
 
 const postSwing = (async (request, response) => {
     const isTestnet = process.env.TESTNET;
@@ -36,17 +37,76 @@ const postSwing = (async (request, response) => {
       await db.connect();
 
       const body = request.body
-      const {ticker, action, strategy} = body
-
+      const {ticker, action, strategy, coinPrice} = body
       const coin = ticker.replace("USDT", "");
-      const coinMarketCap = await getCoinMarketCap({coin: coin})
-      console.log('coinData ', coinMarketCap)
+
+      if (action === 'Buy') {
+        const getTotalAccountBalance = 300
+        // const totalAccountBalance = await getTotalAccountBalance()
+        const coinMarketCap = await getCoinMarketCap({coin: coin})
+        let totalAmoutPerPosition
+        let amountPosition
+
+        // Market cap < 200M
+        if (coinMarketCap < 200000000) {
+            // equivaut à 1% du portefeuille
+            totalAmoutPerPosition = getTotalAccountBalance*(1/100)
+        }
+
+        // Market cap > 200M
+        if (coinMarketCap > 200000000) {
+            // equivaut à 2% du portefeuille
+            totalAmoutPerPosition = getTotalAccountBalance*(2/100)
+        }
+
+        switch (strategy) {
+            case 'robo':
+                amountPosition = totalAmoutPerPosition*(50/100)
+            break;
+            case 'breakout':
+                amountPosition = totalAmoutPerPosition*(30/100)
+            break;
+            case 'support':
+                amountPosition = totalAmoutPerPosition*(20/100)
+            break;
+        }
+
+        const baseParams = {
+            "clientOid": process.env.KUCOIN_UUID,
+            "side": "buy",
+            "symbol": `${coin}-USDT`,
+            "type": "market",
+            "tradeType": "TRADE",
+            "funds": '0.1'
+        }
+
+        const resPostOrder = await postOrder(baseParams)
+        console.log('res ', resPostOrder)
+
+        if (resPostOrder.code === '200000') {
+            telegramPayload = `Coin ${coin} / ${action} / ${strategy} order success : ${resPostOrder.data.orderId}`
+            console.log(telegramPayload);
+        }
+
+        if (resPostOrder.code !== '200000') {
+            telegramPayload = `Coin ${coin} / ${action} / ${strategy} order error : ${resPostOrder.msg}`    
+            console.log(telegramPayload);
+        }
+      }
+
+      if (action === 'Sell') {}
+
+      if (action === 'TakeProfit') {}
+
+
+
 
       //TODO 
 
 
-      
-
+      console.log('here')
+      await telegramService(isTestnet, 'swingController', 'success', telegramPayload)
+      response.sendStatus(200)
     } catch (error) {
 
     }
