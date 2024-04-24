@@ -45,6 +45,7 @@ const postScalping = (async (request, response) => {
     const body = request.body
     const {ticker, action, coinPrice, leverage, quantityUSDT, trendlineType, trendlineCoinPosition} = body
     const coin = ticker.replace(".P", "");
+    const commonTelegramPayload = {isTestnet, source: 'scalpingController', type: 'success', action, coin }
     
     await client.setLeverage({
         category: "linear",
@@ -89,19 +90,17 @@ const postScalping = (async (request, response) => {
         });
 
         if (responseTakeProfit.retMsg === "OK") {
-          console.log("SUCCESS : Exchange order closed");
+          await telegramService(commonTelegramPayload, `SUCCESS order on exchange : ${responseTakeProfit.retMsg}`)
 
           const updateDb = await db.query(
             `UPDATE scalping_db SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
-          telegramPayload = `SUCCESS update token in database : response : ${updateDb}`
-          console.log(telegramPayload);
+          await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${updateDb}`)
         }
 
         if (responseTakeProfit.retMsg !== 'OK') {
-          telegramPayload = `ERROR update token in database : ${responseTakeProfit.retMsg} / response : ${updateDb} `
-          console.log(telegramPayload);
+          await telegramService(commonTelegramPayload, `ERROR order on exchange : ${responseTakeProfit.retMsg}`)
         }
       }
 
@@ -118,8 +117,7 @@ const postScalping = (async (request, response) => {
             `INSERT INTO scalping_db (token_name, trendline_type, trendline_coin_position, created_at, updated_at) VALUES ('${coin}', '${trendlineType}', '${trendlineCoinPosition}', NOW(), NOW())`
           );
 
-          telegramPayload = `SUCCESS create token in database : ${trendlineType} / ${trendlineCoinPosition} / response : ${insertDb}`
-          console.log(telegramPayload)
+          await telegramService(commonTelegramPayload, `SUCCESS create token in database : ${trendlineType} / ${trendlineCoinPosition} / response : ${insertDb}`)
         }
 
         if (selectCoinFromDb[0]) {
@@ -127,8 +125,7 @@ const postScalping = (async (request, response) => {
             `UPDATE scalping_db SET trendline_type = '${trendlineType}', trendline_coin_position = '${trendlineCoinPosition}', updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
-          telegramPayload = `SUCCESS update token in database : ${trendlineType} / ${trendlineCoinPosition} / response : ${updateDb}`
-          console.log(telegramPayload, updateDb);
+          await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${trendlineType} / ${trendlineCoinPosition} / response : ${updateDb}`)
         }
       }
 
@@ -141,8 +138,7 @@ const postScalping = (async (request, response) => {
           currentPositionSize.size !== "0"
         ) {
 
-          telegramPayload = `SUCCESS Skipping order, already ${currentPositionSize.side} order running.`
-          console.log(telegramPayload)
+          await telegramService(commonTelegramPayload, `SUCCESS Skipping order, already ${currentPositionSize.side} order running.`)
         }
 
         // OPPOSITE POSITION SIDE RUNNING, CLOSING IT
@@ -150,7 +146,6 @@ const postScalping = (async (request, response) => {
           currentPositionSize.side !== action &&
           currentPositionSize.size !== "0"
         ) {
-          console.log(`currentPositionSize ${currentPositionSize.side} order running. Closing it.`)
 
           const responseClosePosition = await client.submitOrder({
             category: "linear",
@@ -162,15 +157,14 @@ const postScalping = (async (request, response) => {
           });
 
           if (responseClosePosition.retMsg === "OK") {
-            console.log("SUCCESS closing opposite position side running ");
+            await telegramService(commonTelegramPayload, `SUCCESS closing opposite position side running on exchange : ${responseClosePosition.retMsg}`)
 
             const updateDb = await db.query(
               `UPDATE scalping_db SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
             );
 
+            await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${updateDb}`)
             await db.end();
-            telegramPayload = `SUCCESS update token in database : response : ${updateDb}`
-            console.log(telegramPayload);
           }
         }
 
@@ -180,8 +174,7 @@ const postScalping = (async (request, response) => {
         );
 
         if (selectCoinFromDb.length === 0) {
-          telegramPayload = `SUCCESS token does not exists on database, skipping order.`
-          console.log(telegramPayload)
+          await telegramService(commonTelegramPayload, `SUCCESS token does not exists on database, skipping order.`)
         }
 
         if (selectCoinFromDb.length !== 0) {
@@ -189,8 +182,7 @@ const postScalping = (async (request, response) => {
             !selectCoinFromDb[0].trendline_type ||
             !selectCoinFromDb[0].trendline_coin_position
           ) {
-            telegramPayload = `SUCCESS token does not have trendline data, skipping order.`
-            console.log(telegramPayload);
+            await telegramService(commonTelegramPayload, `SUCCESS token does not have trendline data, skipping order.`)
           }
 
           const finalQuantity =
@@ -211,30 +203,26 @@ const postScalping = (async (request, response) => {
               });
 
               if (responseFinal.retMsg === "OK") {
-                console.log('SUCCESS order opened successfully !')
+                await telegramService(commonTelegramPayload, `SUCCESS order opened successfully on exchange : ${responseFinal.retMsg}`)
 
                 await db.connect(connection);
                 const updateDb = await db.query(
                   `UPDATE scalping_db SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
                 );
 
-                telegramPayload = `SUCCESS order opened successfully ! : response : ${updateDb}`
-                console.log(telegramPayload);
+                await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${updateDb}`)
               }
             }
 
             if (coinDb.trendline_coin_position === "BELOW") {
-              telegramPayload = `SUCCESS skipping order, trendlines configurations does not match.`
-              console.log(telegramPayload);
-
+              await telegramService(commonTelegramPayload, `SUCCESS skipping order, trendlines configurations does not match.`)
             }
           }
 
           if (coinDb.trendline_type === "DOWNTREND") {
             if (coinDb.trendline_coin_position === "ABOVE") {
               if (action === "Buy") {
-                telegramPayload = `SUCCESS skipping order, trendlines configurations does not match.`
-                console.log(telegramPayload);
+                await telegramService(commonTelegramPayload, `SUCCESS skipping order, trendlines configurations does not match.`)
               }
 
               if (action === "Sell") {
@@ -246,23 +234,27 @@ const postScalping = (async (request, response) => {
                   orderType: "Market",
                 });
 
+                console.log('responseFinal ', responseFinal)
+
                 if (responseFinal.retMsg === "OK") {
-                    console.log('SUCCESS order opened successfully !')
+                    await telegramService(commonTelegramPayload, `SUCCESS order opened successfully on exchange : ${responseFinal.retMsg}`)
 
                   const updateDb = await db.query(
                     `UPDATE scalping_db SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
                   );
 
-                  telegramPayload = `SUCCESS order opened successfully ! : response : ${updateDb}`
-                  console.log(telegramPayload);
+                  await telegramService(commonTelegramPayload, `SUCCESS update token in database : response : ${updateDb}`)
                 }
+
+                if (responseFinal.retMsg !== "OK") {
+                  await telegramService(commonTelegramPayload, `ERROR open order on exchange : ${responseFinal.retMsg}`)
+              }
               }
             }
 
             if (coinDb.trendline_coin_position === "BELOW") {
               if (action === "Buy") {
-                telegramPayload = `SUCCESS skipping order, trendlines configurations does not match.`
-              console.log(telegramPayload);
+                await telegramService(commonTelegramPayload, `SUCCESS skipping order, trendlines configurations does not match.`)
               }
 
               if (action === "Sell") {
@@ -275,27 +267,23 @@ const postScalping = (async (request, response) => {
                 });
 
                 if (responseFinal.retMsg === "OK") {
-                  console.log('SUCCESS order opened successfully !')
+                  await telegramService(commonTelegramPayload, `SUCCESS order opened successfully on exchange : ${responseFinal.retMsg}`)
 
                   const updateDb = await db.query(
                     `UPDATE scalping_db SET trade_running = 1, trade_type = '${action}' WHERE token_name = '${coin}'`
                   );
                   
-                  telegramPayload = `SUCCESS order opened successfully ! : response : ${updateDb}`
-                  console.log(telegramPayload);
+                  await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${updateDb}`)
                 }
 
                 if (responseFinal.retMsg !== "OK") {
-                  telegramPayload = `ERROR update token in database : ${responseFinal.retMsg}`
-                  console.log(telegramPayload);
+                  await telegramService(commonTelegramPayload, `ERROR open order on exchange : ${responseFinal.retMsg}`)
                 }
               }
             }
           }
         }
       }
-
-      await telegramService(isTestnet, 'scalpingController', 'success', action, coin, telegramPayload)
       response.sendStatus(200)
     } catch(error) {
         await telegramService(isTestnet, 'scalpingController', 'error', '', '', error)
