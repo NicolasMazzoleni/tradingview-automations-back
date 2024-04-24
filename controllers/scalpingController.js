@@ -298,7 +298,7 @@ const postScalping = (async (request, response) => {
       await telegramService(isTestnet, 'scalpingController', 'success', action, coin, telegramPayload)
       response.sendStatus(200)
     } catch(error) {
-        await telegramService(isTestnet, 'scalpingController', 'error', action, coin, error)
+        await telegramService(isTestnet, 'scalpingController', 'error', '', '', error)
         
         response
         .status(500)
