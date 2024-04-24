@@ -67,7 +67,7 @@ const postScalping = (async (request, response) => {
         console.log("SetTrendline order incoming...");
       }
 
-            // CHECK IF THERE IS ALREADY AN OPEN POSITION
+      // CHECK IF THERE IS ALREADY AN OPEN POSITION
       const responseGetPositionInfo = await client.getPositionInfo({
         category: "linear",
         symbol: coin,
@@ -96,7 +96,7 @@ const postScalping = (async (request, response) => {
             `UPDATE scalping_db SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
-          await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${updateDb}`)
+          await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${JSON.stringify(updateDb)}`)
         }
 
         if (responseTakeProfit.retMsg !== 'OK') {
@@ -117,7 +117,7 @@ const postScalping = (async (request, response) => {
             `INSERT INTO scalping_db (token_name, trendline_type, trendline_coin_position, created_at, updated_at) VALUES ('${coin}', '${trendlineType}', '${trendlineCoinPosition}', NOW(), NOW())`
           );
 
-          await telegramService(commonTelegramPayload, `SUCCESS create token in database : ${trendlineType} / ${trendlineCoinPosition} / response : ${insertDb}`)
+          await telegramService(commonTelegramPayload, `SUCCESS create token in database : ${trendlineType} / ${trendlineCoinPosition} / response : ${JSON.stringify(insertDb)}`)
         }
 
         if (selectCoinFromDb[0]) {
@@ -125,7 +125,7 @@ const postScalping = (async (request, response) => {
             `UPDATE scalping_db SET trendline_type = '${trendlineType}', trendline_coin_position = '${trendlineCoinPosition}', updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
-          await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${trendlineType} / ${trendlineCoinPosition} / response : ${updateDb}`)
+          await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${trendlineType} / ${trendlineCoinPosition} / response : ${JSON.stringify(updateDb)}`)
         }
       }
 
@@ -163,7 +163,7 @@ const postScalping = (async (request, response) => {
               `UPDATE scalping_db SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
             );
 
-            await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${updateDb}`)
+            await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${JSON.stringify(updateDb)}`)
             await db.end();
           }
         }
@@ -210,7 +210,7 @@ const postScalping = (async (request, response) => {
                   `UPDATE scalping_db SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
                 );
 
-                await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${updateDb}`)
+                await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${JSON.stringify(updateDb)}`)
               }
             }
 
@@ -243,7 +243,7 @@ const postScalping = (async (request, response) => {
                     `UPDATE scalping_db SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
                   );
 
-                  await telegramService(commonTelegramPayload, `SUCCESS update token in database : response : ${updateDb}`)
+                  await telegramService(commonTelegramPayload, `SUCCESS update token in database : response : ${JSON.stringify(updateDb)}`)
                 }
 
                 if (responseFinal.retMsg !== "OK") {
@@ -273,7 +273,7 @@ const postScalping = (async (request, response) => {
                     `UPDATE scalping_db SET trade_running = 1, trade_type = '${action}' WHERE token_name = '${coin}'`
                   );
                   
-                  await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${updateDb}`)
+                  await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${JSON.stringify(updateDb)}`)
                 }
 
                 if (responseFinal.retMsg !== "OK") {
