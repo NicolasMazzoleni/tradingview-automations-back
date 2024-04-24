@@ -9,7 +9,6 @@ const postScalping = (async (request, response) => {
     const isTestnet = process.env.TESTNET;
     let publicKey;
     let secretKey;
-    let telegramPayload;
     
     isTestnet
         ? (publicKey = process.env.TESTNET1_BYBIT_API_KEY)
@@ -164,7 +163,6 @@ const postScalping = (async (request, response) => {
             );
 
             await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${JSON.stringify(updateDb)}`)
-            await db.end();
           }
         }
 
@@ -282,6 +280,8 @@ const postScalping = (async (request, response) => {
           }
         }
       }
+
+      await db.end();
       response.sendStatus(200)
     } catch(error) {
         const commonTelegramPayload = {isTestnet, source: 'scalpingController', type: 'error', action: '', coin: '' }
