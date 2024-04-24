@@ -286,7 +286,7 @@ const postScalping = (async (request, response) => {
                 }
 
                 if (responseFinal.retMsg !== "OK") {
-                  telegramPayload = `ERROR update token in database : ${responseTakeProfit.retMsg}`
+                  telegramPayload = `ERROR update token in database : ${responseFinal.retMsg}`
                   console.log(telegramPayload);
                 }
               }
