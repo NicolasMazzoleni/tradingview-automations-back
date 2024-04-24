@@ -267,7 +267,7 @@ const postScalping = (async (request, response) => {
                 });
 
                 if (responseFinal.retMsg === "OK") {
-                  await telegramService(commonTelegramPayload, `SUCCESS order opened successfully on exchange : ${responseFinal.retMsg}`)
+                  await telegramService(commonTelegramPayload, `doc order opened successfully on exchange : ${responseFinal.retMsg}`)
 
                   const updateDb = await db.query(
                     `UPDATE scalping_db SET trade_running = 1, trade_type = '${action}' WHERE token_name = '${coin}'`
@@ -286,10 +286,10 @@ const postScalping = (async (request, response) => {
       }
       response.sendStatus(200)
     } catch(error) {
-        await telegramService(isTestnet, 'scalpingController', 'error', '', '', error)
+        const commonTelegramPayload = {isTestnet, source: 'scalpingController', type: 'error', action: '', coin: '' }
+        await telegramService(commonTelegramPayload, error)
         
-        response
-        .status(500)
+        response.sendStatus(500)
         console.log(`throw error ${error}`)
     }
     })
