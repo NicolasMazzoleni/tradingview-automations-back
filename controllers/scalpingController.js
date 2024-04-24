@@ -95,7 +95,13 @@ const postScalping = (async (request, response) => {
             `UPDATE scalping_db SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
-          console.log(`SUCCESS :  Update ${coin} details in database `, updateDb);
+          telegramPayload = `Success update ${coin} in database : ${insertDb}`
+          console.log(telegramPayload);
+        }
+
+        if (responseTakeProfit.retMsg !== 'OK') {
+          telegramPayload = `Coin ${coin} ${action} order error : ${responseTakeProfit.retMsg}`
+          console.log(telegramPayload);
         }
       }
 
