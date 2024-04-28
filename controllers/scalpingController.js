@@ -203,7 +203,6 @@ const postScalping = (async (request, response) => {
               if (responseFinal.retMsg === "OK") {
                 await telegramService(commonTelegramPayload, `SUCCESS order opened successfully on exchange : ${responseFinal.retMsg}`)
 
-                await db.connect(connection);
                 const updateDb = await db.query(
                   `UPDATE scalping_db SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
                 );
@@ -263,7 +262,7 @@ const postScalping = (async (request, response) => {
                 });
 
                 if (responseFinal.retMsg === "OK") {
-                  await telegramService(commonTelegramPayload, `doc order opened successfully on exchange : ${responseFinal.retMsg}`)
+                  await telegramService(commonTelegramPayload, `SUCCESS order opened successfully on exchange : ${responseFinal.retMsg}`)
 
                   const updateDb = await db.query(
                     `UPDATE scalping_db SET trade_running = 1, trade_type = '${action}' WHERE token_name = '${coin}'`
