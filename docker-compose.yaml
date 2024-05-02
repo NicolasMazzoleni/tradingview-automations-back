@@ -18,7 +18,8 @@ services:
       - db
     restart: always
     environment:
-      - PMA_ARBITRARY=1
+      PMA_HOST: db
+      PMA_PORT: 3306
     ports:
       - 8080:80
 
