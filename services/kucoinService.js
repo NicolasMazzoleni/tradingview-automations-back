@@ -21,13 +21,24 @@ const getTotalAccountBalance = async () => {
   const postOrder = async (baseParams = {}, orderParams = {}) => {
     const openSpotPosition = await API.rest.Trade.Orders.postOrder(baseParams, orderParams);
     return openSpotPosition
+  }
 
+  const isOpenedOrder = async (coin) => {
+    const openedPositions = await API.rest.User.Account.getAccountsList({ type: 'trade' }) ;
+    let isOpen = false
+    
+    for (const currencyObject of openedPositions.data) {  
+      if (currencyObject.currency === coin && currencyObject.balance !== '0') {
+          isOpen = true
+      }
+    }
 
-
+    return isOpen
   }
   
   module.exports = {
     getTotalAccountBalance,
-    postOrder
+    postOrder,
+    isOpenedOrder
   }
 

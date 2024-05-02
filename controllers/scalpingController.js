@@ -42,9 +42,16 @@ const postScalping = (async (request, response) => {
       });
 
     const body = request.body
-    const {ticker, action, coinPrice, leverage, quantityUSDT, trendlineType, trendlineCoinPosition} = body
+    const {ticker, action, coinPrice, trendlineType, trendlineCoinPosition} = body
     const coin = ticker.replace(".P", "");
     const commonTelegramPayload = {isTestnet, source: 'scalpingController', type: 'success', action, coin }
+
+    const [selectCapitalFromDb] = await db.query(
+      `SELECT * FROM scalping_capital`
+    );
+
+    const capital =  selectCapitalFromDb[0].capital
+    const leverage =  selectCapitalFromDb[0].leverage.toString()
     
     await client.setLeverage({
         category: "linear",
@@ -53,16 +60,16 @@ const postScalping = (async (request, response) => {
         sellLeverage: leverage,
       });
 
-      if (action === "Buy") {
+      if (action === "buy") {
         console.log("Buy order incoming...");
       }
-      if (action === "Sell") {
+      if (action === "sell") {
         console.log("Sell order incoming...");
       }
-      if (action === "TakeProfit") {
+      if (action === "takeprofit") {
         console.log("TakeProfit order incoming...");
       }
-      if (action === "SetTrendline") {
+      if (action === "settrendline") {
         console.log("SetTrendline order incoming...");
       }
 
@@ -75,7 +82,7 @@ const postScalping = (async (request, response) => {
       const currentPositionSize = responseGetPositionInfo.result.list[0]
     
       // TAKE PROFIT INTO EXCHANGE
-      if (action === "TakeProfit") {
+      if (action === "takeprofit") {
         console.log("Taking profit from the position");
 
         const side = currentPositionSize.side === "Buy" ? "Sell" : "Buy";
@@ -92,7 +99,7 @@ const postScalping = (async (request, response) => {
           await telegramService(commonTelegramPayload, `SUCCESS order on exchange : ${responseTakeProfit.retMsg}`)
 
           const updateDb = await db.query(
-            `UPDATE scalping_db SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
+            `UPDATE scalping_positions SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
           await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${JSON.stringify(updateDb)}`)
@@ -104,16 +111,16 @@ const postScalping = (async (request, response) => {
       }
 
       // SET TRENDLINE INTO DB
-      if (action === "SetTrendline") {
+      if (action === "settrendline") {
         console.log("SetTrendline action to database");
 
         const [selectCoinFromDb] = await db.query(
-          `SELECT * FROM scalping_db WHERE token_name='${coin}'`
+          `SELECT * FROM scalping_positions WHERE token_name='${coin}'`
         );
 
         if (!selectCoinFromDb[0]) {
           const insertDb = await db.query(
-            `INSERT INTO scalping_db (token_name, trendline_type, trendline_coin_position, created_at, updated_at) VALUES ('${coin}', '${trendlineType}', '${trendlineCoinPosition}', NOW(), NOW())`
+            `INSERT INTO scalping_positions (token_name, trendline_type, trendline_coin_position, created_at, updated_at) VALUES ('${coin}', '${trendlineType}', '${trendlineCoinPosition}', NOW(), NOW())`
           );
 
           await telegramService(commonTelegramPayload, `SUCCESS create token in database : ${trendlineType} / ${trendlineCoinPosition} / response : ${JSON.stringify(insertDb)}`)
@@ -121,7 +128,7 @@ const postScalping = (async (request, response) => {
 
         if (selectCoinFromDb[0]) {
           const updateDb = await db.query(
-            `UPDATE scalping_db SET trendline_type = '${trendlineType}', trendline_coin_position = '${trendlineCoinPosition}', updated_at = NOW() WHERE token_name = '${coin}'`
+            `UPDATE scalping_positions SET trendline_type = '${trendlineType}', trendline_coin_position = '${trendlineCoinPosition}', updated_at = NOW() WHERE token_name = '${coin}'`
           );
 
           await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${trendlineType} / ${trendlineCoinPosition} / response : ${JSON.stringify(updateDb)}`)
@@ -129,7 +136,7 @@ const postScalping = (async (request, response) => {
       }
 
       // BUY OR SELL ORDER INTO EXCHANGE
-      if (action === "Buy" || action === "Sell") {
+      if (action === "buy" || action === "sell") {
         // SAME POSITION SIDE RUNNING, SKIPPING
 
         if (
@@ -159,7 +166,7 @@ const postScalping = (async (request, response) => {
             await telegramService(commonTelegramPayload, `SUCCESS closing opposite position side running on exchange : ${responseClosePosition.retMsg}`)
 
             const updateDb = await db.query(
-              `UPDATE scalping_db SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
+              `UPDATE scalping_positions SET trade_running = 0, trade_type = NULL, updated_at = NOW() WHERE token_name = '${coin}'`
             );
 
             await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${JSON.stringify(updateDb)}`)
@@ -168,8 +175,9 @@ const postScalping = (async (request, response) => {
 
         // NEW BUY OR SELL ORDER, OPENING IT
         const [selectCoinFromDb] = await db.query(
-          `SELECT * FROM scalping_db WHERE token_name='${coin}'`
+          `SELECT * FROM scalping_positions WHERE token_name='${coin}'`
         );
+
 
         if (selectCoinFromDb.length === 0) {
           await telegramService(commonTelegramPayload, `SUCCESS token does not exists on database, skipping order.`)
@@ -183,98 +191,47 @@ const postScalping = (async (request, response) => {
             await telegramService(commonTelegramPayload, `SUCCESS token does not have trendline data, skipping order.`)
           }
 
+          const quantityUSDT = capital / leverage
           const finalQuantity =
             (quantityUSDT / coinPrice) *
             leverage;
 
           const coinDb = selectCoinFromDb[0];
 
-          // OPEN POSITION REGARDING TRENDLINE CONFIGURATION
-          if (coinDb.trendline_type === "UPTREND") {
-            if (coinDb.trendline_coin_position === "ABOVE") {
-              const responseFinal = await client.submitOrder({
-                category: "linear",
-                symbol: coin,
-                side: "Buy",
-                qty: String(finalQuantity.toFixed(0)),
-                orderType: "Market",
-              });
 
-              if (responseFinal.retMsg === "OK") {
-                await telegramService(commonTelegramPayload, `SUCCESS order opened successfully on exchange : ${responseFinal.retMsg}`)
+          // get signal regarding trendline configuration
+          const [strategyfromDb] = await db.query(
+            `SELECT ${action}_signal FROM scalping_strategy WHERE trendline_configuration = '${coinDb.trendline_type}' AND coin_position = '${coinDb.trendline_coin_position}'`
+          );
 
-                const updateDb = await db.query(
-                  `UPDATE scalping_db SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
-                );
+          const finalOrder = strategyfromDb[0][`${action}_signal`]
+          let formatSide
 
-                await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${JSON.stringify(updateDb)}`)
-              }
-            }
-
-            if (coinDb.trendline_coin_position === "BELOW") {
-              await telegramService(commonTelegramPayload, `SUCCESS skipping order, trendlines configurations does not match.`)
-            }
+          if (finalOrder === null) {
+            await telegramService(commonTelegramPayload, `SUCCESS skipping order, trendlines configurations does not match.`)
           }
 
-          if (coinDb.trendline_type === "DOWNTREND") {
-            if (coinDb.trendline_coin_position === "ABOVE") {
-              if (action === "Buy") {
-                await telegramService(commonTelegramPayload, `SUCCESS skipping order, trendlines configurations does not match.`)
-              }
+          if (finalOrder !== null) {
+            formatSide =  finalOrder.charAt(0).toUpperCase()
+            + finalOrder.slice(1)
 
-              if (action === "Sell") {
-                const responseFinal = await client.submitOrder({
-                  category: "linear",
-                  symbol: coin,
-                  side: "Buy",
-                  qty: String(finalQuantity.toFixed(0)),
-                  orderType: "Market",
-                });
+            const responseFinal = await client.submitOrder({
+              category: "linear",
+              symbol: coin,
+              side: formatSide,
+              qty: String(finalQuantity.toFixed(0)),
+              orderType: "Market",
+            });
 
-                if (responseFinal.retMsg === "OK") {
-                    await telegramService(commonTelegramPayload, `SUCCESS order opened successfully on exchange : ${responseFinal.retMsg}`)
 
-                  const updateDb = await db.query(
-                    `UPDATE scalping_db SET trade_running = 1, trade_type = 'Buy' WHERE token_name = '${coin}'`
-                  );
+            if (responseFinal.retMsg === "OK") {
+              await telegramService(commonTelegramPayload, `SUCCESS order opened successfully on exchange : ${responseFinal.retMsg}`)
 
-                  await telegramService(commonTelegramPayload, `SUCCESS update token in database : response : ${JSON.stringify(updateDb)}`)
-                }
+              const updateDb = await db.query(
+                `UPDATE scalping_positions SET trade_running = 1, trade_type = '${finalOrder}' WHERE token_name = '${coin}'`
+              );
 
-                if (responseFinal.retMsg !== "OK") {
-                  await telegramService(commonTelegramPayload, `ERROR open order on exchange : ${responseFinal.retMsg}`)
-              }
-              }
-            }
-
-            if (coinDb.trendline_coin_position === "BELOW") {
-              if (action === "Buy") {
-                await telegramService(commonTelegramPayload, `SUCCESS skipping order, trendlines configurations does not match.`)
-              }
-
-              if (action === "Sell") {
-                const responseFinal = await client.submitOrder({
-                  category: "linear",
-                  symbol: coin,
-                  side: action,
-                  qty: String(finalQuantity.toFixed(0)),
-                  orderType: "Market",
-                });
-
-                if (responseFinal.retMsg === "OK") {
-                  await telegramService(commonTelegramPayload, `SUCCESS order opened successfully on exchange : ${responseFinal.retMsg}`)
-
-                  const updateDb = await db.query(
-                    `UPDATE scalping_db SET trade_running = 1, trade_type = '${action}' WHERE token_name = '${coin}'`
-                  );
-                  
-                  await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${JSON.stringify(updateDb)}`)
-                }
-
-                if (responseFinal.retMsg !== "OK") {
-                  await telegramService(commonTelegramPayload, `ERROR open order on exchange : ${responseFinal.retMsg}`)
-                }
-              }
+              await telegramService(commonTelegramPayload, `SUCCESS update token in database : ${JSON.stringify(updateDb)}`)
             }
           }
         }
